@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-<!-- 🔥 BIBLIOTECAS DO FIREBASE (Compat para funcionar com seu script atual) -->
+<!-- 🔥 BIBLIOTECAS DO FIREBASE -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -218,7 +218,7 @@ hr.sep{ border:none; border-top:1px solid var(--line); margin:18px 0; }
 
 <header class="app-header">
   <div class="header-row">
-    <button class="icon-btn" id="btn-settings" title="Dados e configurações" aria-label="Configurações">⚙️</button>
+    <button class="icon-btn" id="btn-settings" title="Configurações e Sincronia" aria-label="Configurações">⚙️</button>
     <div class="brand">
       <img class="logo-mark" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhNdsk1dWLMZCRpJLHj1Elzg57qBaWW1Og1_yVrBICy3iHpPmrBCAizo1xF_zvjWyWx9CeyIkq7LLxyKP0DKC3lHiFC4XQJR21nGybENVfwSkoGAWe4oqZMTFLw67ifKKoJso9_geKOFQ8D0dABXirZuNqB1-uOBilLHsrA9MfuwiijjQhAwmnPC1jvXIE/s2835/IMG_3119.webp" alt="Divino Fogão">
       <div class="brand-text"><span class="tag">Controle de estoque</span></div>
@@ -237,7 +237,7 @@ hr.sep{ border:none; border-top:1px solid var(--line); margin:18px 0; }
 
 <script>
 /* ============================= CONFIGURAÇÃO FIREBASE ============================= */
-// 🔥 SUAS CREDENCIAIS JÁ INSERIDAS AQUI
+// 🔥 SUAS CREDENCIAIS
 const firebaseConfig = {
   apiKey: "AIzaSyAXBNCvj0HPlwm5ae5UWLDsbPxnYt9_pLg",
   authDomain: "divinofogao-4f470.firebaseapp.com",
@@ -253,15 +253,6 @@ const db = firebase.database();
 
 /* ============================= STATE ============================= */
 const STORAGE_KEY = 'divinoFogaoData_v3';
-const REMOTE_URL_KEY = 'divinoFogaoRemoteUrl';
-const LAST_SYNC_KEY = 'divinoFogaoLastSync';
-const DEFAULT_REMOTE_URL = 'https://raw.githubusercontent.com/leaoxp/EstoqueDivino/refs/heads/main/divino-fogao-estoque.json';
-
-function getRemoteUrl(){
-  let url = localStorage.getItem(REMOTE_URL_KEY);
-  if(!url){ url = DEFAULT_REMOTE_URL; localStorage.setItem(REMOTE_URL_KEY, url); }
-  return url;
-}
 
 function seedData(){
   const produtos = [
@@ -296,8 +287,10 @@ function saveToFirebase(){
   isUpdating = true;
   db.ref('/estoque').set(state).then(() => {
     isUpdating = false;
-  }).catch(() => {
+  }).catch((err) => {
     isUpdating = false;
+    console.error("Erro ao salvar no Firebase:", err);
+    toast('❌ Erro ao salvar na nuvem. Verifique as regras do Firebase.');
   });
 }
 
@@ -319,7 +312,8 @@ function loadFromFirebase(callback){
       saveToFirebase();
     }
     if(callback) callback();
-  }).catch(() => {
+  }).catch((err) => {
+    console.warn("Erro ao carregar do Firebase, usando cache local:", err);
     // Se falhar, tenta carregar do cache local
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw) {
@@ -341,59 +335,46 @@ db.ref('/estoque').on('value', (snapshot) => {
   }
 });
 
-/* ---------- sincronização com GitHub (catálogo) ---------- */
-function mergeCatalogFromRemote(data){
-  if(!data || !Array.isArray(data.produtos)) return 0;
-  let alterados = 0;
-  data.produtos.forEach(rp=>{
-    const local = state.produtos.find(p=>p.id === rp.id);
-    if(local){
-      if(local.nome!==rp.nome || local.unidade!==rp.unidade || local.estoqueMinimo!==rp.estoqueMinimo){
-        local.nome = rp.nome; local.unidade = rp.unidade; local.estoqueMinimo = rp.estoqueMinimo;
-        alterados++;
-      }
-    } else {
-      state.produtos.push({id:rp.id, nome:rp.nome, unidade:rp.unidade, estoque:rp.estoque||0, estoqueMinimo:rp.estoqueMinimo||0});
-      alterados++;
-    }
-  });
-  return alterados;
-}
-
-async function syncCatalog({ silent = false, fullSync = false } = {}) {
-  const url = getRemoteUrl();
+/* ---------- Ferramenta de Importação do GitHub ---------- */
+async function importarDoGitHub(url, substituirTudo = false) {
   try {
     const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json();
     if (!data.produtos) throw new Error('formato inválido');
 
-    if (fullSync) {
-      if (!silent && !confirm('Isso vai substituir todos os dados locais (estoque, pedidos, histórico) pelo JSON remoto. Continuar?')) return false;
+    if (substituirTudo) {
+      if (!confirm('Isso vai substituir TODOS os dados locais (estoque, pedidos e histórico) pelo JSON remoto. Continuar?')) return false;
       state = {
         produtos: data.produtos || [],
         movimentacoes: data.movimentacoes || [],
         pedidos: data.pedidos || [],
         contagens: data.contagens || []
       };
-      localStorage.setItem(LAST_SYNC_KEY, todayISO());
-      save(); // Envia para Firebase
-      if (!silent) toast('✅ Sincronização completa realizada.');
-      renderAll();
-      return true;
     } else {
-      const alterados = mergeCatalogFromRemote(data);
-      localStorage.setItem(LAST_SYNC_KEY, todayISO());
-      save();
-      if (alterados > 0) {
-        if (!silent) toast(`🔄 Catálogo sincronizado – ${alterados} produto(s) atualizado(s).`);
-        renderAll();
-      } else if (!silent) {
-        toast('Catálogo já está atualizado.');
-      }
-      return true;
+      // Apenas mescla catálogo (não mexe no estoque)
+      let alterados = 0;
+      data.produtos.forEach(rp => {
+        const local = state.produtos.find(p => p.id === rp.id);
+        if (local) {
+          if (local.nome !== rp.nome || local.unidade !== rp.unidade || local.estoqueMinimo !== rp.estoqueMinimo) {
+            local.nome = rp.nome; local.unidade = rp.unidade; local.estoqueMinimo = rp.estoqueMinimo;
+            alterados++;
+          }
+        } else {
+          state.produtos.push({id: rp.id, nome: rp.nome, unidade: rp.unidade, estoque: rp.estoque||0, estoqueMinimo: rp.estoqueMinimo||0});
+          alterados++;
+        }
+      });
+      if(alterados === 0) { toast('Catálogo do GitHub já está igual ao seu.'); return false; }
     }
+    
+    save();
+    toast('✅ Dados importados do GitHub com sucesso!');
+    renderAll();
+    return true;
   } catch (err) {
-    if (!silent) toast('❌ Não foi possível sincronizar agora. Verifique a conexão.');
+    toast('❌ Não foi possível importar desse link. Verifique a URL.');
+    console.error(err);
     return false;
   }
 }
@@ -942,49 +923,62 @@ document.getElementById('modal-backdrop').addEventListener('click', e=>{
   if(e.target.id==='modal-backdrop') closeModal();
 });
 
-/* ============================= CONFIGURAÇÕES ============================= */
+/* ============================= CONFIGURAÇÕES (NOVO MENU) ============================= */
 document.getElementById('btn-settings').addEventListener('click', ()=>{
-  const savedUrl = getRemoteUrl();
-  const lastSync = localStorage.getItem(LAST_SYNC_KEY);
+  const savedUrl = 'https://raw.githubusercontent.com/leaoxp/EstoqueDivino/refs/heads/main/divino-fogao-estoque.json';
   openModal(`
-    <div class="modal-head"><h3>⚙️ Dados e configurações</h3><button class="modal-close" id="modal-x">✕</button></div>
-    <h3 style="font-size:13px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.08em;">Fonte automática (GitHub)</h3>
-    <div class="hint">O catálogo de produtos é sincronizado com este link. Os dados de estoque e pedidos agora são salvos no Firebase em tempo real.</div>
-    <div class="field"><input id="cfg-url" value="${savedUrl}"></div>
-    <div class="section-sub" style="margin-bottom:12px;">${lastSync ? `Última sincronização: ${new Date(lastSync).toLocaleString('pt-BR')}` : 'Ainda não sincronizado.'}</div>
-    <div class="actions-row">
-      <button class="btn btn-primary" id="cfg-salvar-url" style="flex:1;">💾 Salvar link</button>
-      <button class="btn btn-outline" id="cfg-sync-agora" style="flex:1;">🔄 Sincronizar agora</button>
+    <div class="modal-head"><h3>⚙️ Configurações e Sincronia</h3><button class="modal-close" id="modal-x">✕</button></div>
+
+    <div class="panel" style="border-color: rgba(122,145,99,.3);">
+      <h3 style="color:var(--sage);">☁️ Status da nuvem</h3>
+      <div class="hint">✅ Seus dados estão sincronizados em tempo real com o Firebase. Qualquer alteração feita neste site aparece automaticamente em outros dispositivos.</div>
+      <div class="section-sub">O seu estoque, pedidos e histórico não dependem mais do GitHub.</div>
     </div>
+
     <hr class="sep">
+
+    <h3 style="font-size:13px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.08em;">Importar do GitHub (ferramenta única)</h3>
+    <div class="hint">Use isso apenas para importar a lista de produtos de um JSON do GitHub. O estoque e histórico atuais serão preservados (ou pode substituir tudo).</div>
+    <div class="field"><input id="cfg-url" value="${savedUrl}"></div>
+    
+    <div class="actions-row">
+      <button class="btn btn-outline" id="cfg-importar-catalogo" style="flex:1;">📥 Importar catálogo</button>
+      <button class="btn btn-outline" id="cfg-substituir-tudo" style="flex:1;">⚠️ Substituir tudo</button>
+    </div>
+
+    <hr class="sep">
+
     <h3 style="font-size:13px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.08em;">Backup local</h3>
-    <div class="hint">Exporte ou importe um backup JSON (os dados já estão salvos na nuvem).</div>
+    <div class="hint">Exporte os dados atuais para um arquivo, ou restaure a partir de um backup anterior.</div>
     <div class="actions-row">
       <button class="btn btn-success" id="cfg-exportar" style="flex:1;">⬇️ Exportar .json</button>
       <button class="btn btn-outline" id="cfg-importar" style="flex:1;">⬆️ Importar .json</button>
     </div>
     <button class="btn btn-outline btn-block" id="cfg-exportar-xml" style="margin-top:8px;">📥 Exportar .xml</button>
     <input type="file" id="cfg-file" accept="application/json" style="display:none;">
+
     <hr class="sep">
     <button class="btn btn-danger btn-block" id="cfg-reset">↺ Restaurar dados de exemplo</button>
   `);
   document.getElementById('modal-x').addEventListener('click', closeModal);
 
-  document.getElementById('cfg-salvar-url').addEventListener('click', ()=>{
+  // 📥 Importar apenas catálogo
+  document.getElementById('cfg-importar-catalogo').addEventListener('click', async () => {
     const url = document.getElementById('cfg-url').value.trim();
     if(!url){ toast('Informe uma URL válida.'); return; }
-    localStorage.setItem(REMOTE_URL_KEY, url);
-    toast('Link salvo como fonte automática.');
-  });
-
-  document.getElementById('cfg-sync-agora').addEventListener('click', async ()=>{
-    const url = document.getElementById('cfg-url').value.trim();
-    if (!url) { toast('Informe uma URL válida.'); return; }
-    localStorage.setItem(REMOTE_URL_KEY, url);
-    await syncCatalog({ silent: false, fullSync: true });
+    await importarDoGitHub(url, false);
     closeModal();
   });
 
+  // ⚠️ Substituir tudo
+  document.getElementById('cfg-substituir-tudo').addEventListener('click', async () => {
+    const url = document.getElementById('cfg-url').value.trim();
+    if(!url){ toast('Informe uma URL válida.'); return; }
+    await importarDoGitHub(url, true);
+    closeModal();
+  });
+
+  // Backup JSON
   document.getElementById('cfg-exportar').addEventListener('click', ()=>{
     const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
     const a = document.createElement('a');
@@ -1022,7 +1016,6 @@ document.getElementById('btn-settings').addEventListener('click', ()=>{
 // 🔥 Carrega do Firebase primeiro, depois renderiza
 loadFromFirebase(() => {
   renderAll();
-  syncCatalog({ silent: true, fullSync: false });
 });
 </script>
 </body>
