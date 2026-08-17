@@ -1,6 +1,6 @@
 {
   "produtos": [
-    { "id": 1, "nome": "Refrigerante Lata", "unidade": "lata", "estoque": 0, "estoqueMinimo": 12 },
+    { "id": 1, "nome": "Refrigerante Lata", "unidade": "lata", "estoque": 3, "estoqueMinimo": 12 },
     { "id": 2, "nome": "Ice Tea", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 8 },
     { "id": 3, "nome": "Sprite Lemon Fresh", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 8 },
     { "id": 4, "nome": "Água Sem Gás 500ml", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 12 },
