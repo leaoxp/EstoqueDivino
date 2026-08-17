@@ -278,7 +278,7 @@ function persist(s = state){
 }
 function save(){ persist(state); }
 
-/* ---------- sincronização automática do catálogo (GitHub raw JSON) ---------- */
+/* ---------- sincronização ---------- */
 function mergeCatalogFromRemote(data){
   if(!data || !Array.isArray(data.produtos)) return 0;
   let alterados = 0;
@@ -287,6 +287,8 @@ function mergeCatalogFromRemote(data){
     if(local){
       if(local.nome!==rp.nome || local.unidade!==rp.unidade || local.estoqueMinimo!==rp.estoqueMinimo){
         local.nome = rp.nome; local.unidade = rp.unidade; local.estoqueMinimo = rp.estoqueMinimo;
+        // opcional: descomente a linha abaixo se quiser que a sincronia leve também atualize o estoque
+        // local.estoque = rp.estoque;
         alterados++;
       }
     } else {
@@ -297,23 +299,43 @@ function mergeCatalogFromRemote(data){
   return alterados;
 }
 
-async function syncCatalog({silent=false} = {}){
+async function syncCatalog({ silent = false, fullSync = false } = {}) {
   const url = getRemoteUrl();
-  try{
-    const res = await fetch(url, {cache:'no-store'});
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json();
-    const alterados = mergeCatalogFromRemote(data);
-    localStorage.setItem(LAST_SYNC_KEY, todayISO());
-    save();
-    if(alterados>0){
-      toast(`🔄 Catálogo sincronizado — ${alterados} produto(s) atualizado(s).`);
+
+    if (!data.produtos) throw new Error('formato inválido');
+
+    if (fullSync) {
+      // ✅ Substitui TUDO (estoque, pedidos, movimentos, contagens)
+      if (!silent && !confirm('Isso vai substituir todos os dados locais (estoque, pedidos, histórico) pelo JSON remoto. Continuar?')) return false;
+      state = {
+        produtos: data.produtos || [],
+        movimentacoes: data.movimentacoes || [],
+        pedidos: data.pedidos || [],
+        contagens: data.contagens || []
+      };
+      localStorage.setItem(LAST_SYNC_KEY, todayISO());
+      persist();
+      if (!silent) toast('✅ Sincronização completa realizada – todos os dados foram substituídos.');
       renderAll();
-    } else if(!silent){
-      toast('Catálogo já está atualizado.');
+      return true;
+    } else {
+      // ✅ Sincronia leve: só atualiza catálogo (nome, unidade, mínimo)
+      const alterados = mergeCatalogFromRemote(data);
+      localStorage.setItem(LAST_SYNC_KEY, todayISO());
+      persist();
+      if (alterados > 0) {
+        if (!silent) toast(`🔄 Catálogo sincronizado – ${alterados} produto(s) atualizado(s).`);
+        renderAll();
+      } else if (!silent) {
+        toast('Catálogo já está atualizado.');
+      }
+      return true;
     }
-    return true;
-  }catch(err){
-    if(!silent) toast('Não foi possível sincronizar agora. Verifique a conexão.');
+  } catch (err) {
+    if (!silent) toast('❌ Não foi possível sincronizar agora. Verifique a conexão.');
     return false;
   }
 }
@@ -868,7 +890,7 @@ document.getElementById('modal-backdrop').addEventListener('click', e=>{
   if(e.target.id==='modal-backdrop') closeModal();
 });
 
-/* ============================= CONFIGURAÇÕES (URL JSON / backup) — oculto atrás da engrenagem ============================= */
+/* ============================= CONFIGURAÇÕES ============================= */
 document.getElementById('btn-settings').addEventListener('click', ()=>{
   const savedUrl = getRemoteUrl();
   const lastSync = localStorage.getItem(LAST_SYNC_KEY);
@@ -913,8 +935,10 @@ document.getElementById('btn-settings').addEventListener('click', ()=>{
   });
 
   document.getElementById('cfg-sync-agora').addEventListener('click', async ()=>{
-    localStorage.setItem(REMOTE_URL_KEY, document.getElementById('cfg-url').value.trim() || DEFAULT_REMOTE_URL);
-    await syncCatalog({silent:false});
+    const url = document.getElementById('cfg-url').value.trim();
+    if (!url) { toast('Informe uma URL válida.'); return; }
+    localStorage.setItem(REMOTE_URL_KEY, url);
+    await syncCatalog({ silent: false, fullSync: true });  // <-- sincronia completa
     closeModal();
   });
 
@@ -972,7 +996,7 @@ document.getElementById('btn-settings').addEventListener('click', ()=>{
 
 /* ============================= INIT ============================= */
 renderAll();
-syncCatalog({silent:true});
+syncCatalog({ silent: true, fullSync: false });
 </script>
 </body>
 </html>
