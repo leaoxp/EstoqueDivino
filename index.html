@@ -6,6 +6,11 @@
 <title>Divino Fogão · Controle de Estoque</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- 🔥 BIBLIOTECAS DO FIREBASE (Compat para funcionar com seu script atual) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <style>
 :root{
   --bg:#14100d;
@@ -231,11 +236,25 @@ hr.sep{ border:none; border-top:1px solid var(--line); margin:18px 0; }
 <div class="toast" id="toast"></div>
 
 <script>
+/* ============================= CONFIGURAÇÃO FIREBASE ============================= */
+// 🔥 SUAS CREDENCIAIS JÁ INSERIDAS AQUI
+const firebaseConfig = {
+  apiKey: "AIzaSyAXBNCvj0HPlwm5ae5UWLDsbPxnYt9_pLg",
+  authDomain: "divinofogao-4f470.firebaseapp.com",
+  databaseURL: "https://divinofogao-4f470-default-rtdb.firebaseio.com",
+  projectId: "divinofogao-4f470",
+  storageBucket: "divinofogao-4f470.firebasestorage.app",
+  messagingSenderId: "188047430839",
+  appId: "1:188047430839:web:5cbe527172719430ece932",
+  measurementId: "G-F59FDFJVY1"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 /* ============================= STATE ============================= */
 const STORAGE_KEY = 'divinoFogaoData_v3';
 const REMOTE_URL_KEY = 'divinoFogaoRemoteUrl';
 const LAST_SYNC_KEY = 'divinoFogaoLastSync';
-/* 🔥 AQUI ESTÁ A URL QUE VOCÊ PEDIU – JÁ CONFIGURADA COMO PADRÃO! */
 const DEFAULT_REMOTE_URL = 'https://raw.githubusercontent.com/leaoxp/EstoqueDivino/refs/heads/main/divino-fogao-estoque.json';
 
 function getRemoteUrl(){
@@ -263,23 +282,66 @@ function seedData(){
   return {produtos, movimentacoes:[], pedidos:[], contagens:[]};
 }
 
-let state = loadState();
+// Estado inicial
+let state = seedData();
+let isUpdating = false; // 🔒 Evita loops de sincronização
 
-function loadState(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
-  const seeded = seedData();
-  persist(seeded);
-  return seeded;
-}
-function persist(s = state){
+/* ---------- Carregar e Salvar com Firebase ---------- */
+function persistLocal(s = state){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
-function save(){ persist(state); }
 
-/* ---------- sincronização ---------- */
+function saveToFirebase(){
+  if(!state) return;
+  isUpdating = true;
+  db.ref('/estoque').set(state).then(() => {
+    isUpdating = false;
+  }).catch(() => {
+    isUpdating = false;
+  });
+}
+
+// 🔥 Função principal de salvar: Salva localmente + no Firebase
+function save(){
+  persistLocal(state);
+  saveToFirebase();
+}
+
+// 🔥 Carregar do Firebase (chamado na inicialização)
+function loadFromFirebase(callback){
+  db.ref('/estoque').once('value').then((snapshot) => {
+    const data = snapshot.val();
+    if(data && data.produtos && data.produtos.length > 0){
+      state = data;
+      persistLocal(state);
+    } else {
+      state = seedData();
+      saveToFirebase();
+    }
+    if(callback) callback();
+  }).catch(() => {
+    // Se falhar, tenta carregar do cache local
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) {
+      try { state = JSON.parse(raw); } catch(e){ state = seedData(); }
+    }
+    if(callback) callback();
+  });
+}
+
+// 🔥 Ouvinte em Tempo Real (sincroniza com outros dispositivos)
+db.ref('/estoque').on('value', (snapshot) => {
+  if(isUpdating) return; // Ignora se fomos nós que fizemos a alteração
+  const data = snapshot.val();
+  if(data && data.produtos && data.produtos.length > 0){
+    state = data;
+    persistLocal(state);
+    renderAll(); // Atualiza a tela automaticamente
+    toast('🔄 Dados sincronizados com a nuvem!');
+  }
+});
+
+/* ---------- sincronização com GitHub (catálogo) ---------- */
 function mergeCatalogFromRemote(data){
   if(!data || !Array.isArray(data.produtos)) return 0;
   let alterados = 0;
@@ -288,8 +350,6 @@ function mergeCatalogFromRemote(data){
     if(local){
       if(local.nome!==rp.nome || local.unidade!==rp.unidade || local.estoqueMinimo!==rp.estoqueMinimo){
         local.nome = rp.nome; local.unidade = rp.unidade; local.estoqueMinimo = rp.estoqueMinimo;
-        // opcional: descomente a linha abaixo se quiser que a sincronia leve também atualize o estoque
-        // local.estoque = rp.estoque;
         alterados++;
       }
     } else {
@@ -305,11 +365,9 @@ async function syncCatalog({ silent = false, fullSync = false } = {}) {
   try {
     const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json();
-
     if (!data.produtos) throw new Error('formato inválido');
 
     if (fullSync) {
-      // ✅ Substitui TUDO (estoque, pedidos, movimentos, contagens)
       if (!silent && !confirm('Isso vai substituir todos os dados locais (estoque, pedidos, histórico) pelo JSON remoto. Continuar?')) return false;
       state = {
         produtos: data.produtos || [],
@@ -318,15 +376,14 @@ async function syncCatalog({ silent = false, fullSync = false } = {}) {
         contagens: data.contagens || []
       };
       localStorage.setItem(LAST_SYNC_KEY, todayISO());
-      persist();
-      if (!silent) toast('✅ Sincronização completa realizada – todos os dados foram substituídos.');
+      save(); // Envia para Firebase
+      if (!silent) toast('✅ Sincronização completa realizada.');
       renderAll();
       return true;
     } else {
-      // ✅ Sincronia leve: só atualiza catálogo (nome, unidade, mínimo)
       const alterados = mergeCatalogFromRemote(data);
       localStorage.setItem(LAST_SYNC_KEY, todayISO());
-      persist();
+      save();
       if (alterados > 0) {
         if (!silent) toast(`🔄 Catálogo sincronizado – ${alterados} produto(s) atualizado(s).`);
         renderAll();
@@ -378,19 +435,16 @@ function escXML(v){
 function exportarXML(){
   let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
   xml += '<divino_fogao_estoque>\n';
-
   xml += '  <produtos>\n';
   state.produtos.forEach(p=>{
     xml += `    <produto id="${escXML(p.id)}" nome="${escXML(p.nome)}" unidade="${escXML(p.unidade)}" estoque="${escXML(p.estoque)}" estoqueMinimo="${escXML(p.estoqueMinimo)}" />\n`;
   });
   xml += '  </produtos>\n';
-
   xml += '  <movimentacoes>\n';
   state.movimentacoes.forEach(m=>{
     xml += `    <movimentacao data="${escXML(m.data)}" produto="${escXML(m.produto)}" tipo="${escXML(m.tipo)}" quantidade="${escXML(m.quantidade)}" observacao="${escXML(m.observacao)}" />\n`;
   });
   xml += '  </movimentacoes>\n';
-
   xml += '  <pedidos>\n';
   state.pedidos.forEach(p=>{
     xml += `    <pedido id="${escXML(p.id)}" tipo="${escXML(p.tipo)}" data="${escXML(p.data)}" chegada="${escXML(p.chegada)}" status="${escXML(p.status)}">\n`;
@@ -400,7 +454,6 @@ function exportarXML(){
     xml += '    </pedido>\n';
   });
   xml += '  </pedidos>\n';
-
   xml += '  <contagens>\n';
   state.contagens.forEach(c=>{
     xml += `    <contagem data="${escXML(c.data)}">\n`;
@@ -410,7 +463,6 @@ function exportarXML(){
     xml += '    </contagem>\n';
   });
   xml += '  </contagens>\n';
-
   xml += '</divino_fogao_estoque>';
 
   const blob = new Blob([xml], {type:'application/xml'});
@@ -725,7 +777,6 @@ function renderContagem(el){
       return {produtoId, produto: produto.nome, quantidade: Number(inp.value)||0};
     });
     state.contagens.push({data:dataISO, produtos:produtosContagem});
-    // sincroniza estoque atual com a contagem física
     produtosContagem.forEach(item=>{
       const produto = state.produtos.find(p=>p.id===item.produtoId);
       if(produto) produto.estoque = item.quantidade;
@@ -897,32 +948,23 @@ document.getElementById('btn-settings').addEventListener('click', ()=>{
   const lastSync = localStorage.getItem(LAST_SYNC_KEY);
   openModal(`
     <div class="modal-head"><h3>⚙️ Dados e configurações</h3><button class="modal-close" id="modal-x">✕</button></div>
-
     <h3 style="font-size:13px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.08em;">Fonte automática (GitHub)</h3>
-    <div class="hint">O catálogo de produtos (nome, unidade, mínimo) é sincronizado automaticamente com este link toda vez que o app abre. O estoque atual e o histórico continuam salvos só neste aparelho.</div>
+    <div class="hint">O catálogo de produtos é sincronizado com este link. Os dados de estoque e pedidos agora são salvos no Firebase em tempo real.</div>
     <div class="field"><input id="cfg-url" value="${savedUrl}"></div>
     <div class="section-sub" style="margin-bottom:12px;">${lastSync ? `Última sincronização: ${new Date(lastSync).toLocaleString('pt-BR')}` : 'Ainda não sincronizado.'}</div>
     <div class="actions-row">
       <button class="btn btn-primary" id="cfg-salvar-url" style="flex:1;">💾 Salvar link</button>
       <button class="btn btn-outline" id="cfg-sync-agora" style="flex:1;">🔄 Sincronizar agora</button>
     </div>
-
     <hr class="sep">
-    <h3 style="font-size:13px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.08em;">Substituir tudo pela URL</h3>
-    <div class="hint">Apaga os dados locais (estoque, movimentações, pedidos e contagens) e carrega tudo direto do JSON acima. Use só para restaurar do zero.</div>
-    <button class="btn btn-outline btn-block" id="cfg-carregar">📩 Substituir tudo pela URL</button>
-
-    <hr class="sep">
-
     <h3 style="font-size:13px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.08em;">Backup local</h3>
-    <div class="hint">Exporte todos os dados para um arquivo, ou restaure a partir de um backup anterior.</div>
+    <div class="hint">Exporte ou importe um backup JSON (os dados já estão salvos na nuvem).</div>
     <div class="actions-row">
       <button class="btn btn-success" id="cfg-exportar" style="flex:1;">⬇️ Exportar .json</button>
       <button class="btn btn-outline" id="cfg-importar" style="flex:1;">⬆️ Importar .json</button>
     </div>
     <button class="btn btn-outline btn-block" id="cfg-exportar-xml" style="margin-top:8px;">📥 Exportar .xml</button>
     <input type="file" id="cfg-file" accept="application/json" style="display:none;">
-
     <hr class="sep">
     <button class="btn btn-danger btn-block" id="cfg-reset">↺ Restaurar dados de exemplo</button>
   `);
@@ -939,27 +981,8 @@ document.getElementById('btn-settings').addEventListener('click', ()=>{
     const url = document.getElementById('cfg-url').value.trim();
     if (!url) { toast('Informe uma URL válida.'); return; }
     localStorage.setItem(REMOTE_URL_KEY, url);
-    await syncCatalog({ silent: false, fullSync: true });  // <-- sincronia completa
+    await syncCatalog({ silent: false, fullSync: true });
     closeModal();
-  });
-
-  document.getElementById('cfg-carregar').addEventListener('click', async ()=>{
-    const url = document.getElementById('cfg-url').value.trim();
-    if(!url){ toast('Informe uma URL válida.'); return; }
-    if(!confirm('Isso vai apagar estoque, movimentações, pedidos e contagens locais. Continuar?')) return;
-    try{
-      const res = await fetch(url, {cache:'no-store'});
-      const data = await res.json();
-      if(!data.produtos) throw new Error('formato inválido');
-      state = {produtos:data.produtos||[], movimentacoes:data.movimentacoes||[], pedidos:data.pedidos||[], contagens:data.contagens||[]};
-      save();
-      localStorage.setItem(REMOTE_URL_KEY, url);
-      localStorage.setItem(LAST_SYNC_KEY, todayISO());
-      toast('Dados carregados da URL com sucesso.');
-      closeModal(); activeTab='dashboard'; renderAll();
-    }catch(err){
-      toast('Não foi possível carregar esse JSON. Verifique a URL.');
-    }
   });
 
   document.getElementById('cfg-exportar').addEventListener('click', ()=>{
@@ -996,8 +1019,11 @@ document.getElementById('btn-settings').addEventListener('click', ()=>{
 });
 
 /* ============================= INIT ============================= */
-renderAll();
-syncCatalog({ silent: true, fullSync: false });
+// 🔥 Carrega do Firebase primeiro, depois renderiza
+loadFromFirebase(() => {
+  renderAll();
+  syncCatalog({ silent: true, fullSync: false });
+});
 </script>
 </body>
 </html>
