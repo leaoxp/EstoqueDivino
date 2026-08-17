@@ -1,0 +1,20 @@
+{
+  "produtos": [
+    { "id": 1, "nome": "Refrigerante Lata", "unidade": "lata", "estoque": 0, "estoqueMinimo": 12 },
+    { "id": 2, "nome": "Ice Tea", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 8 },
+    { "id": 3, "nome": "Sprite Lemon Fresh", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 8 },
+    { "id": 4, "nome": "Água Sem Gás 500ml", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 12 },
+    { "id": 5, "nome": "Água Com Gás 500ml", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 12 },
+    { "id": 6, "nome": "Del Valle", "unidade": "unidade", "estoque": 0, "estoqueMinimo": 10 },
+    { "id": 7, "nome": "Energético 473ml", "unidade": "lata", "estoque": 0, "estoqueMinimo": 10 },
+    { "id": 8, "nome": "Suco de Laranja 300ml", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 8 },
+    { "id": 9, "nome": "Suco de Laranja com Acerola 300ml", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 8 },
+    { "id": 10, "nome": "Suco de Laranja com Manga 300ml", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 8 },
+    { "id": 11, "nome": "Suco de Maracujá 300ml", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 8 },
+    { "id": 12, "nome": "Suco de Laranja com Amora e Morango 300ml", "unidade": "garrafa", "estoque": 0, "estoqueMinimo": 8 },
+    { "id": 13, "nome": "Suco de Laranja 5L", "unidade": "galão", "estoque": 0, "estoqueMinimo": 2 }
+  ],
+  "movimentacoes": [],
+  "pedidos": [],
+  "contagens": []
+}
