@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Divino Fogão · Controle de Estoque</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#14100d;
+  --bg-elev:#1c1610;
+  --panel:#221a13;
+  --panel-2:#2a2018;
+  --line:rgba(255,178,56,.14);
+  --line-strong:rgba(255,178,56,.28);
+  --paper:#f4ead9;
+  --paper-dim:#c9bba5;
+  --ash:#8a7d6c;
+  --ember-hot:#ff6a2b;
+  --ember-gold:#ffb238;
+  --ember-bright:#ffd166;
+  --ember-cold:#8b3a26;
+  --ember-crit:#c1442b;
+  --sage:#7a9163;
+  --radius:14px;
+  --radius-sm:8px;
+  --shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    linear-gradient(180deg, rgba(20,16,13,.5) 0%, rgba(20,16,13,.82) 46%, var(--bg) 88%),
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(255,106,43,.12), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 0%, rgba(255,178,56,.06), transparent 55%),
+    url('https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiqGHX0UiMN8MN7eUdvOLVmcm3utSj28ZIuAzfJ22tOlqUAvtFoE5oSCFewpEczzIJg-2_ImnCStSl_nGDnDvr3bohBDxfK8dcCWJP4AUq44eWVFhA7UwsgJ__0o5X_iTaS3YLB_lpdXf_z73wfi-292g3QkMFuVZxo_U9J7pdgXSuQmVCGDFIhwQNbxHE/s1376/IMG_3120.png') center top / cover no-repeat fixed,
+    var(--bg);
+  color:var(--paper);
+  font-family:'Inter',system-ui,sans-serif;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.display{font-family:'Oswald',sans-serif; letter-spacing:.02em; text-transform:uppercase;}
+.mono{font-family:'JetBrains Mono',monospace;}
+a{color:inherit}
+button{font-family:inherit}
+
+/* ---------- header ---------- */
+header.app-header{
+  position:sticky; top:0; z-index:40;
+  background: linear-gradient(180deg, rgba(20,16,13,.85), rgba(20,16,13,.75));
+  backdrop-filter: blur(10px);
+  border-bottom:1px solid var(--line);
+  padding:16px 18px 10px;
+}
+.header-row{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; }
+.brand{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+.logo-mark{
+  height:58px; width:auto; display:block;
+  filter: drop-shadow(0 4px 14px rgba(0,0,0,.55));
+}
+.brand-text .tag{font-size:10.5px; color:var(--ash); text-transform:uppercase; letter-spacing:.18em; font-family:'Inter',sans-serif;}
+.icon-btn{
+  position:absolute; top:0; right:0;
+  width:38px; height:38px; border-radius:10px; border:1px solid var(--line-strong);
+  background:var(--panel); color:var(--paper-dim); display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:16px; transition:.15s;
+}
+.icon-btn:hover{ border-color:var(--ember-hot); color:var(--ember-gold); }
+
+/* ---------- tabs ---------- */
+nav.tabs{
+  display:flex; gap:6px; overflow-x:auto; margin-top:14px; padding-bottom:2px;
+  justify-content:center; scrollbar-width:none;
+}
+nav.tabs::-webkit-scrollbar{display:none}
+.tab-btn{
+  flex:0 0 auto; display:flex; align-items:center; gap:6px;
+  padding:9px 14px; border-radius:999px; border:1px solid transparent;
+  background:transparent; color:var(--paper-dim); font-size:13px; font-weight:600;
+  cursor:pointer; white-space:nowrap; transition:.15s;
+}
+.tab-btn:hover{ color:var(--paper); background:var(--panel); }
+.tab-btn.active{
+  background: linear-gradient(135deg, var(--ember-hot), var(--ember-cold));
+  color:#1a1108; border-color:transparent; box-shadow: 0 4px 14px rgba(255,106,43,.35);
+}
+
+/* ---------- layout ---------- */
+main{ padding:20px 16px 80px; max-width:960px; margin:0 auto; }
+.view{ display:none; animation: rise .25s ease; }
+.view.active{ display:block; }
+@keyframes rise{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+.view-title{ font-size:24px; color:var(--paper); margin:2px 0 16px; display:flex; align-items:center; gap:10px;}
+
+/* ---------- cards / grid ---------- */
+.grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+@media(min-width:640px){ .grid.cols-4{grid-template-columns:repeat(4,1fr);} }
+.card{
+  background: linear-gradient(160deg, rgba(34,26,19,.82), rgba(28,22,16,.82));
+  border:1px solid var(--line); border-radius:var(--radius); padding:16px;
+  box-shadow: var(--shadow); backdrop-filter: blur(8px);
+}
+.card .label{ font-size:11.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--ash); margin-bottom:8px; }
+.card .value{ font-family:'JetBrains Mono',monospace; font-size:32px; font-weight:600; color:var(--paper); }
+.card.accent-hot{ border-color:rgba(255,106,43,.4); }
+.card.accent-crit{ border-color:rgba(193,68,43,.5); }
+.card.accent-low{ border-color:rgba(255,178,56,.4); }
+.card.accent-ok{ border-color:rgba(122,145,99,.4); }
+.card .value.crit{ color:var(--ember-crit); }
+.card .value.low{ color:var(--ember-gold); }
+.card .value.ok{ color:var(--sage); }
+
+.panel{
+  background: rgba(34,26,19,.82); border:1px solid var(--line); border-radius:var(--radius);
+  padding:18px; margin-top:16px; box-shadow:var(--shadow); backdrop-filter: blur(8px);
+}
+.panel h3{ font-size:15px; color:var(--ember-gold); margin:0 0 12px; display:flex; align-items:center; gap:8px;}
+.alert-line{ display:flex; gap:8px; align-items:flex-start; font-size:14px; color:var(--paper-dim); padding:6px 0; border-bottom:1px dashed var(--line); }
+.alert-line:last-child{border-bottom:none}
+.alert-line b{color:var(--paper); font-weight:600;}
+.empty-note{ color:var(--ash); font-size:14px; padding:8px 2px; }
+
+/* ---------- ember gauge (signature element) ---------- */
+.brasa-row{ display:flex; align-items:center; gap:10px; }
+.brasa-track{
+  position:relative; flex:1; height:9px; border-radius:999px; overflow:hidden;
+  background: linear-gradient(90deg, var(--ember-cold), var(--ember-hot) 55%, var(--ember-bright));
+  animation: ember-pulse 2.6s ease-in-out infinite;
+}
+@keyframes ember-pulse{ 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.12)} }
+@media (prefers-reduced-motion: reduce){ .brasa-track{animation:none} }
+.brasa-mask{ position:absolute; top:0; right:0; bottom:0; background:var(--bg-elev); }
+.brasa-pct{ font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--ash); min-width:34px; text-align:right; }
+
+/* ---------- tables ---------- */
+.table-wrap{ overflow-x:auto; border-radius:var(--radius); border:1px solid var(--line); }
+table{ width:100%; border-collapse:collapse; min-width:520px; }
+thead th{
+  text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.09em;
+  color:var(--ash); background:var(--bg-elev); padding:11px 12px; border-bottom:1px solid var(--line);
+}
+tbody td{ padding:12px; font-size:13.5px; border-bottom:1px solid var(--line); color:var(--paper-dim); vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{ background:rgba(255,106,43,.05); }
+td.strong{ color:var(--paper); font-weight:600; }
+.status-pill{ display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;}
+.status-pill.ok{ background:rgba(122,145,99,.16); color:var(--sage); }
+.status-pill.low{ background:rgba(255,178,56,.16); color:var(--ember-gold); }
+.status-pill.crit{ background:rgba(193,68,43,.18); color:#ff8266; }
+.status-pill.pend{ background:rgba(255,178,56,.16); color:var(--ember-gold); }
+.status-pill.recv{ background:rgba(122,145,99,.16); color:var(--sage); }
+.status-pill.part{ background:rgba(255,106,43,.18); color:var(--ember-hot); }
+
+/* ---------- forms ---------- */
+.field{ margin-bottom:14px; }
+.field label{ display:block; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--ash); margin-bottom:6px; }
+.field input, .field select, .field textarea{
+  width:100%; background:var(--bg-elev); border:1px solid var(--line-strong); color:var(--paper);
+  border-radius:var(--radius-sm); padding:11px 12px; font-size:14.5px; font-family:inherit; outline:none;
+}
+.field input:focus, .field select:focus, .field textarea:focus{ border-color:var(--ember-hot); box-shadow:0 0 0 3px rgba(255,106,43,.15); }
+.field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:12px 18px; border-radius:var(--radius-sm); border:1px solid transparent;
+  font-size:14px; font-weight:700; cursor:pointer; transition:.15s; text-transform:uppercase; letter-spacing:.04em;
+}
+.btn-primary{ background:linear-gradient(135deg, var(--ember-hot), var(--ember-cold)); color:#1a1108; box-shadow:0 6px 16px rgba(255,106,43,.3); }
+.btn-primary:hover{ filter:brightness(1.08); }
+.btn-outline{ background:transparent; border-color:var(--line-strong); color:var(--paper-dim); }
+.btn-outline:hover{ border-color:var(--ember-hot); color:var(--ember-gold); }
+.btn-success{ background:rgba(122,145,99,.16); color:var(--sage); border-color:rgba(122,145,99,.4); }
+.btn-danger{ background:rgba(193,68,43,.16); color:#ff8266; border-color:rgba(193,68,43,.4); }
+.btn-sm{ padding:7px 12px; font-size:11.5px; }
+.btn-block{ width:100%; }
+.actions-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;}
+
+/* ---------- modal ---------- */
+.modal-backdrop{
+  position:fixed; inset:0; background:rgba(10,7,5,.65); backdrop-filter:blur(3px);
+  display:none; align-items:flex-end; justify-content:center; z-index:100; padding:0;
+}
+.modal-backdrop.open{ display:flex; }
+@media(min-width:640px){ .modal-backdrop{align-items:center;} }
+.modal{
+  background:var(--panel-2); border:1px solid var(--line-strong); border-radius:18px 18px 0 0;
+  width:100%; max-width:480px; max-height:88vh; overflow-y:auto; padding:22px 20px 26px;
+  box-shadow:0 -10px 40px rgba(0,0,0,.5);
+}
+@media(min-width:640px){ .modal{border-radius:18px;} }
+.modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.modal-head h3{ margin:0; font-size:17px; color:var(--paper); text-transform:none; letter-spacing:0; font-family:'Oswald',sans-serif; }
+.modal-close{ background:none; border:none; color:var(--ash); font-size:20px; cursor:pointer; line-height:1;}
+.hint{ font-size:12px; color:var(--ash); margin-top:-6px; margin-bottom:14px; line-height:1.5;}
+hr.sep{ border:none; border-top:1px solid var(--line); margin:18px 0; }
+
+.toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--panel-2); border:1px solid var(--line-strong); color:var(--paper);
+  padding:12px 18px; border-radius:999px; font-size:13.5px; box-shadow:var(--shadow);
+  opacity:0; pointer-events:none; transition:.25s; z-index:200; display:flex; align-items:center; gap:8px;
+}
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+.section-sub{ font-size:12.5px; color:var(--ash); margin:-8px 0 14px; }
+.product-chip{ display:flex; justify-content:space-between; align-items:center; padding:9px 12px; background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-sm); margin-bottom:8px; font-size:13.5px;}
+.qty-input{ width:78px; text-align:right; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-row">
+    <button class="icon-btn" id="btn-settings" title="Dados e configurações" aria-label="Configurações">⚙️</button>
+    <div class="brand">
+      <img class="logo-mark" src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhNdsk1dWLMZCRpJLHj1Elzg57qBaWW1Og1_yVrBICy3iHpPmrBCAizo1xF_zvjWyWx9CeyIkq7LLxyKP0DKC3lHiFC4XQJR21nGybENVfwSkoGAWe4oqZMTFLw67ifKKoJso9_geKOFQ8D0dABXirZuNqB1-uOBilLHsrA9MfuwiijjQhAwmnPC1jvXIE/s2835/IMG_3119.webp" alt="Divino Fogão">
+      <div class="brand-text"><span class="tag">Controle de estoque</span></div>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+</header>
+
+<main id="views"></main>
+
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================= STATE ============================= */
+const STORAGE_KEY = 'divinoFogaoData_v3';
+const REMOTE_URL_KEY = 'divinoFogaoRemoteUrl';
+const LAST_SYNC_KEY = 'divinoFogaoLastSync';
+const DEFAULT_REMOTE_URL = 'https://raw.githubusercontent.com/leaoxp/EstoqueDivino/refs/heads/main/divino-fogao-estoque.json';
+
+function getRemoteUrl(){
+  let url = localStorage.getItem(REMOTE_URL_KEY);
+  if(!url){ url = DEFAULT_REMOTE_URL; localStorage.setItem(REMOTE_URL_KEY, url); }
+  return url;
+}
+
+function seedData(){
+  const produtos = [
+    {id:1, nome:'Refrigerante Lata', unidade:'lata', estoque:0, estoqueMinimo:12},
+    {id:2, nome:'Ice Tea', unidade:'garrafa', estoque:0, estoqueMinimo:8},
+    {id:3, nome:'Sprite Lemon Fresh', unidade:'garrafa', estoque:0, estoqueMinimo:8},
+    {id:4, nome:'Água Sem Gás 500ml', unidade:'garrafa', estoque:0, estoqueMinimo:12},
+    {id:5, nome:'Água Com Gás 500ml', unidade:'garrafa', estoque:0, estoqueMinimo:12},
+    {id:6, nome:'Del Valle', unidade:'unidade', estoque:0, estoqueMinimo:10},
+    {id:7, nome:'Energético 473ml', unidade:'lata', estoque:0, estoqueMinimo:10},
+    {id:8, nome:'Suco de Laranja 300ml', unidade:'garrafa', estoque:0, estoqueMinimo:8},
+    {id:9, nome:'Suco de Laranja com Acerola 300ml', unidade:'garrafa', estoque:0, estoqueMinimo:8},
+    {id:10, nome:'Suco de Laranja com Manga 300ml', unidade:'garrafa', estoque:0, estoqueMinimo:8},
+    {id:11, nome:'Suco de Maracujá 300ml', unidade:'garrafa', estoque:0, estoqueMinimo:8},
+    {id:12, nome:'Suco de Laranja com Amora e Morango 300ml', unidade:'garrafa', estoque:0, estoqueMinimo:8},
+    {id:13, nome:'Suco de Laranja 5L', unidade:'galão', estoque:0, estoqueMinimo:2},
+  ];
+  return {produtos, movimentacoes:[], pedidos:[], contagens:[]};
+}
+
+let state = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  const seeded = seedData();
+  persist(seeded);
+  return seeded;
+}
+function persist(s = state){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+function save(){ persist(state); }
+
+/* ---------- sincronização automática do catálogo (GitHub raw JSON) ---------- */
+function mergeCatalogFromRemote(data){
+  if(!data || !Array.isArray(data.produtos)) return 0;
+  let alterados = 0;
+  data.produtos.forEach(rp=>{
+    const local = state.produtos.find(p=>p.id === rp.id);
+    if(local){
+      if(local.nome!==rp.nome || local.unidade!==rp.unidade || local.estoqueMinimo!==rp.estoqueMinimo){
+        local.nome = rp.nome; local.unidade = rp.unidade; local.estoqueMinimo = rp.estoqueMinimo;
+        alterados++;
+      }
+    } else {
+      state.produtos.push({id:rp.id, nome:rp.nome, unidade:rp.unidade, estoque:rp.estoque||0, estoqueMinimo:rp.estoqueMinimo||0});
+      alterados++;
+    }
+  });
+  return alterados;
+}
+
+async function syncCatalog({silent=false} = {}){
+  const url = getRemoteUrl();
+  try{
+    const res = await fetch(url, {cache:'no-store'});
+    const data = await res.json();
+    const alterados = mergeCatalogFromRemote(data);
+    localStorage.setItem(LAST_SYNC_KEY, todayISO());
+    save();
+    if(alterados>0){
+      toast(`🔄 Catálogo sincronizado — ${alterados} produto(s) atualizado(s).`);
+      renderAll();
+    } else if(!silent){
+      toast('Catálogo já está atualizado.');
+    }
+    return true;
+  }catch(err){
+    if(!silent) toast('Não foi possível sincronizar agora. Verifique a conexão.');
+    return false;
+  }
+}
+
+/* ============================= HELPERS ============================= */
+const fmt = n => Number.isFinite(n) ? (Math.round(n*100)/100).toString() : '0';
+const todayISO = () => new Date().toISOString();
+const dateBR = iso => { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('pt-BR'); };
+const addDays = (iso, days) => { const d = new Date(iso); d.setDate(d.getDate()+days); return d.toISOString(); };
+const daysBetween = (a,b) => (new Date(b) - new Date(a)) / 86400000;
+
+function nextId(arr){ return arr.length ? Math.max(...arr.map(p=>p.id||0)) + 1 : 1; }
+
+function statusProduto(p){
+  if(p.estoque <= p.estoqueMinimo*0.5) return 'crit';
+  if(p.estoque <= p.estoqueMinimo) return 'low';
+  return 'ok';
+}
+function statusLabel(s){ return {crit:'Crítico', low:'Baixo', ok:'Normal'}[s]; }
+
+function brasaPct(p){
+  const ref = p.estoqueMinimo*2 || 1;
+  return Math.max(2, Math.min(100, Math.round((p.estoque/ref)*100)));
+}
+function brasaGauge(p){
+  const pct = brasaPct(p);
+  return `<div class="brasa-row">
+    <div class="brasa-track"><div class="brasa-mask" style="width:${100-pct}%"></div></div>
+    <span class="brasa-pct mono">${pct}%</span>
+  </div>`;
+}
+
+function escXML(v){
+  return String(v ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+
+function exportarXML(){
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<divino_fogao_estoque>\n';
+
+  xml += '  <produtos>\n';
+  state.produtos.forEach(p=>{
+    xml += `    <produto id="${escXML(p.id)}" nome="${escXML(p.nome)}" unidade="${escXML(p.unidade)}" estoque="${escXML(p.estoque)}" estoqueMinimo="${escXML(p.estoqueMinimo)}" />\n`;
+  });
+  xml += '  </produtos>\n';
+
+  xml += '  <movimentacoes>\n';
+  state.movimentacoes.forEach(m=>{
+    xml += `    <movimentacao data="${escXML(m.data)}" produto="${escXML(m.produto)}" tipo="${escXML(m.tipo)}" quantidade="${escXML(m.quantidade)}" observacao="${escXML(m.observacao)}" />\n`;
+  });
+  xml += '  </movimentacoes>\n';
+
+  xml += '  <pedidos>\n';
+  state.pedidos.forEach(p=>{
+    xml += `    <pedido id="${escXML(p.id)}" tipo="${escXML(p.tipo)}" data="${escXML(p.data)}" chegada="${escXML(p.chegada)}" status="${escXML(p.status)}">\n`;
+    p.produtos.forEach(item=>{
+      xml += `      <item produto="${escXML(item.produto)}" quantidade="${escXML(item.quantidade)}"${item.recebido!=null?` recebido="${escXML(item.recebido)}"`:''} />\n`;
+    });
+    xml += '    </pedido>\n';
+  });
+  xml += '  </pedidos>\n';
+
+  xml += '  <contagens>\n';
+  state.contagens.forEach(c=>{
+    xml += `    <contagem data="${escXML(c.data)}">\n`;
+    c.produtos.forEach(item=>{
+      xml += `      <item produtoId="${escXML(item.produtoId)}" produto="${escXML(item.produto)}" quantidade="${escXML(item.quantidade)}" />\n`;
+    });
+    xml += '    </contagem>\n';
+  });
+  xml += '  </contagens>\n';
+
+  xml += '</divino_fogao_estoque>';
+
+  const blob = new Blob([xml], {type:'application/xml'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const hoje = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  link.download = `divino_fogao_backup_${hoje}.xml`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  toast('Backup em XML exportado.');
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+/* ============================= CONSUMO / PREVISÕES ============================= */
+function consumoDiario(produto){
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-30);
+  const saidas30 = state.movimentacoes.filter(m =>
+    m.produto === produto.nome && m.tipo === 'SAÍDA' && new Date(m.data) >= cutoff
+  );
+  if(saidas30.length >= 3){
+    const soma = saidas30.reduce((s,m)=>s+Number(m.quantidade),0);
+    return soma/30;
+  }
+  const contagensProduto = state.contagens
+    .map(c => {
+      const item = c.produtos.find(x => x.produtoId === produto.id);
+      return item ? {data:c.data, quantidade:item.quantidade} : null;
+    })
+    .filter(Boolean)
+    .sort((a,b)=> new Date(b.data) - new Date(a.data));
+
+  if(contagensProduto.length >= 2){
+    const atual = contagensProduto[0];
+    const anterior = contagensProduto[1];
+    const entradas = state.movimentacoes
+      .filter(m => m.produto === produto.nome && m.tipo === 'ENTRADA' && new Date(m.data) > new Date(anterior.data) && new Date(m.data) <= new Date(atual.data))
+      .reduce((s,m)=>s+Number(m.quantidade),0);
+    const consumo = anterior.quantidade + entradas - atual.quantidade;
+    const dias = daysBetween(anterior.data, atual.data);
+    if(dias > 0) return Math.max(0, consumo/dias);
+  }
+  return 0;
+}
+
+function previsao(produto, prazoEntrega){
+  const cd = consumoDiario(produto);
+  let diasAteMinimo, dataPrevista;
+  if(cd > 0){
+    diasAteMinimo = Math.max(0, (produto.estoque - produto.estoqueMinimo)/cd);
+    dataPrevista = addDays(todayISO(), Math.round(diasAteMinimo));
+  } else {
+    diasAteMinimo = produto.estoque <= produto.estoqueMinimo ? 0 : Infinity;
+    dataPrevista = null;
+  }
+  const sugestao = Math.max(0, Math.ceil(cd*prazoEntrega + produto.estoqueMinimo - produto.estoque));
+  return {consumoDiario:cd, diasAteMinimo, dataPrevista, sugestao};
+}
+
+/* ============================= NAV / TABS ============================= */
+const TABS = [
+  {id:'dashboard', label:'Dashboard', icon:'📊'},
+  {id:'estoque', label:'Estoque', icon:'📦'},
+  {id:'entrada', label:'Entrada', icon:'➕'},
+  {id:'saida', label:'Saída', icon:'➖'},
+  {id:'contagem', label:'Contagem', icon:'🧮'},
+  {id:'pedidos', label:'Pedidos', icon:'🧾'},
+  {id:'recebimento', label:'Recebimento', icon:'📥'},
+  {id:'historico', label:'Histórico', icon:'🕒'},
+  {id:'previsoes', label:'Previsões', icon:'🔮'},
+];
+let activeTab = 'dashboard';
+
+function renderTabs(){
+  const nav = document.getElementById('tabs');
+  nav.innerHTML = TABS.map(t => `
+    <button class="tab-btn ${t.id===activeTab?'active':''}" data-tab="${t.id}">
+      <span>${t.icon}</span><span>${t.label}</span>
+    </button>
+  `).join('');
+  nav.querySelectorAll('.tab-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{ activeTab = b.dataset.tab; renderAll(); window.scrollTo({top:0,behavior:'smooth'}); });
+  });
+}
+
+function renderAll(){
+  renderTabs();
+  const main = document.getElementById('views');
+  main.innerHTML = `<div class="view active" id="view-${activeTab}"></div>`;
+  const renderers = {
+    dashboard: renderDashboard, estoque: renderEstoque, entrada: renderEntrada,
+    saida: renderSaida, contagem: renderContagem, pedidos: renderPedidos,
+    recebimento: renderRecebimento, historico: renderHistorico, previsoes: renderPrevisoes,
+  };
+  renderers[activeTab](document.getElementById(`view-${activeTab}`));
+}
+
+/* ============================= DASHBOARD ============================= */
+function renderDashboard(el){
+  const produtos = state.produtos;
+  const crit = produtos.filter(p=>statusProduto(p)==='crit').length;
+  const low = produtos.filter(p=>statusProduto(p)==='low').length;
+  const ok = produtos.filter(p=>statusProduto(p)==='ok').length;
+  const pend = state.pedidos.filter(p=>p.status!=='RECEBIDO').length;
+  const precisamReposicao = produtos.filter(p=>statusProduto(p)!=='ok');
+
+  el.innerHTML = `
+    <h1 class="view-title">📊 Dashboard</h1>
+    <div class="grid cols-4">
+      <div class="card"><div class="label">Total de produtos</div><div class="value">${produtos.length}</div></div>
+      <div class="card accent-ok"><div class="label">Estoque normal</div><div class="value ok">${ok}</div></div>
+      <div class="card accent-low"><div class="label">Estoque baixo</div><div class="value low">${low}</div></div>
+      <div class="card accent-crit"><div class="label">Estoque crítico</div><div class="value crit">${crit}</div></div>
+    </div>
+    <div class="grid" style="margin-top:12px; grid-template-columns:1fr;">
+      <div class="card"><div class="label">Pedidos pendentes</div><div class="value">${pend}</div></div>
+    </div>
+    <div class="panel">
+      <h3>📋 Resumo automático</h3>
+      ${ precisamReposicao.length ? `
+        <div class="alert-line">⚠️ <span><b>${crit+low}</b> produto(s) com estoque baixo ou crítico.</span></div>
+        <div class="alert-line">📦 <span><b>${precisamReposicao.length}</b> produto(s) precisam de reposição. Veja a aba <b>Previsões</b>.</span></div>
+      ` : `<div class="empty-note">Tudo sob controle — nenhum produto precisa de reposição agora.</div>` }
+    </div>
+    <div class="panel">
+      <h3>🔥 Medidor de brasa por produto</h3>
+      <div class="section-sub">Estoque atual em relação ao dobro do mínimo recomendado.</div>
+      ${produtos.map(p=>`
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;">
+            <span class="strong" style="color:var(--paper)">${p.nome}</span>
+            <span class="mono" style="color:var(--ash)">${fmt(p.estoque)} ${p.unidade}</span>
+          </div>
+          ${brasaGauge(p)}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+/* ============================= ESTOQUE ============================= */
+function renderEstoque(el){
+  el.innerHTML = `
+    <h1 class="view-title">📦 Estoque</h1>
+    <div class="actions-row" style="margin-bottom:14px;">
+      <button class="btn btn-primary" id="btn-novo-produto">+ Novo produto</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Produto</th><th>Estoque</th><th>Mínimo</th><th>Status</th><th>Brasa</th><th></th></tr></thead>
+        <tbody>
+          ${state.produtos.map(p=>{
+            const s = statusProduto(p);
+            return `<tr>
+              <td class="strong">${p.nome}</td>
+              <td class="mono">${fmt(p.estoque)} ${p.unidade}</td>
+              <td class="mono">${fmt(p.estoqueMinimo)} ${p.unidade}</td>
+              <td><span class="status-pill ${s}">${statusLabel(s)}</span></td>
+              <td style="min-width:120px">${brasaGauge(p)}</td>
+              <td>
+                <div class="actions-row" style="margin:0;">
+                  <button class="btn btn-outline btn-sm" data-edit="${p.id}">Editar</button>
+                  <button class="btn btn-danger btn-sm" data-del="${p.id}">Excluir</button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  el.querySelector('#btn-novo-produto').addEventListener('click', ()=>openProdutoModal());
+  el.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>openProdutoModal(Number(b.dataset.edit))));
+  el.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{
+    const id = Number(b.dataset.del);
+    const p = state.produtos.find(x=>x.id===id);
+    if(confirm(`Excluir "${p.nome}" do estoque?`)){
+      state.produtos = state.produtos.filter(x=>x.id!==id);
+      save(); renderAll(); toast('Produto excluído.');
+    }
+  }));
+}
+
+function openProdutoModal(id){
+  const editing = id ? state.produtos.find(p=>p.id===id) : null;
+  openModal(`
+    <div class="modal-head"><h3>${editing?'Editar produto':'Novo produto'}</h3><button class="modal-close" id="modal-x">✕</button></div>
+    <div class="field"><label>Nome</label><input id="f-nome" value="${editing?editing.nome:''}" placeholder="Ex: Cerveja Long Neck"></div>
+    <div class="field-row">
+      <div class="field"><label>Unidade</label><input id="f-unidade" value="${editing?editing.unidade:'un'}" placeholder="un, L, kg..."></div>
+      <div class="field"><label>Estoque atual</label><input id="f-estoque" type="number" step="any" value="${editing?editing.estoque:0}"></div>
+    </div>
+    <div class="field"><label>Estoque mínimo</label><input id="f-min" type="number" step="any" value="${editing?editing.estoqueMinimo:0}"></div>
+    <button class="btn btn-primary btn-block" id="f-salvar">Salvar produto</button>
+  `);
+  document.getElementById('modal-x').addEventListener('click', closeModal);
+  document.getElementById('f-salvar').addEventListener('click', ()=>{
+    const nome = document.getElementById('f-nome').value.trim();
+    const unidade = document.getElementById('f-unidade').value.trim() || 'un';
+    const estoque = Number(document.getElementById('f-estoque').value)||0;
+    const estoqueMinimo = Number(document.getElementById('f-min').value)||0;
+    if(!nome){ toast('Informe o nome do produto.'); return; }
+    if(editing){
+      Object.assign(editing, {nome, unidade, estoque, estoqueMinimo});
+      toast('Produto atualizado.');
+    } else {
+      state.produtos.push({id: nextId(state.produtos), nome, unidade, estoque, estoqueMinimo});
+      toast('Produto adicionado.');
+    }
+    save(); closeModal(); renderAll();
+  });
+}
+
+/* ============================= ENTRADA ============================= */
+function renderEntrada(el){
+  el.innerHTML = `
+    <h1 class="view-title">➕ Entrada de estoque</h1>
+    <div class="panel">
+      <div class="field"><label>Produto</label>
+        <select id="e-produto">${state.produtos.map(p=>`<option value="${p.id}">${p.nome}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Quantidade</label><input id="e-qtd" type="number" step="any" min="0"></div>
+      <div class="field"><label>Observação (opcional)</label><input id="e-obs" placeholder="Ex: compra fornecedor X"></div>
+      <button class="btn btn-primary btn-block" id="e-salvar">Registrar entrada</button>
+    </div>
+  `;
+  el.querySelector('#e-salvar').addEventListener('click', ()=>{
+    const id = Number(el.querySelector('#e-produto').value);
+    const qtd = Number(el.querySelector('#e-qtd').value);
+    const obs = el.querySelector('#e-obs').value.trim();
+    const p = state.produtos.find(x=>x.id===id);
+    if(!qtd || qtd<=0){ toast('Informe uma quantidade válida.'); return; }
+    p.estoque += qtd;
+    state.movimentacoes.push({data:todayISO(), produto:p.nome, tipo:'ENTRADA', quantidade:qtd, observacao:obs});
+    save(); toast(`Entrada registrada: +${fmt(qtd)} ${p.unidade} em ${p.nome}.`);
+    renderAll(); activeTab='entrada'; renderAll();
+  });
+}
+
+/* ============================= SAÍDA ============================= */
+const MOTIVOS_SAIDA = ['Consumo/venda','Quebra','Vencimento','Cortesia','Uso interno','Ajuste'];
+function renderSaida(el){
+  el.innerHTML = `
+    <h1 class="view-title">➖ Saída de estoque</h1>
+    <div class="panel">
+      <div class="field"><label>Produto</label>
+        <select id="s-produto">${state.produtos.map(p=>`<option value="${p.id}">${p.nome} — ${fmt(p.estoque)} ${p.unidade} em estoque</option>`).join('')}</select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Quantidade</label><input id="s-qtd" type="number" step="any" min="0"></div>
+        <div class="field"><label>Motivo</label>
+          <select id="s-motivo">${MOTIVOS_SAIDA.map(m=>`<option>${m}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="field"><label>Observação (opcional)</label><input id="s-obs" placeholder="Detalhes adicionais"></div>
+      <button class="btn btn-primary btn-block" id="s-salvar">Registrar saída</button>
+    </div>
+  `;
+  el.querySelector('#s-salvar').addEventListener('click', ()=>{
+    const id = Number(el.querySelector('#s-produto').value);
+    const qtd = Number(el.querySelector('#s-qtd').value);
+    const motivo = el.querySelector('#s-motivo').value;
+    const obs = el.querySelector('#s-obs').value.trim();
+    const p = state.produtos.find(x=>x.id===id);
+    if(!qtd || qtd<=0){ toast('Informe uma quantidade válida.'); return; }
+    if(qtd > p.estoque){ toast(`Estoque insuficiente: há apenas ${fmt(p.estoque)} ${p.unidade} de ${p.nome}.`); return; }
+    p.estoque -= qtd;
+    state.movimentacoes.push({data:todayISO(), produto:p.nome, tipo:'SAÍDA', quantidade:qtd, observacao: obs?`${motivo} — ${obs}`:motivo});
+    save(); toast(`Saída registrada: -${fmt(qtd)} ${p.unidade} de ${p.nome}.`);
+    renderAll();
+  });
+}
+
+/* ============================= CONTAGEM ============================= */
+function renderContagem(el){
+  const ultimas = [...state.contagens].sort((a,b)=>new Date(b.data)-new Date(a.data)).slice(0,5);
+  el.innerHTML = `
+    <h1 class="view-title">🧮 Contagem física</h1>
+    <div class="panel">
+      <h3>Nova contagem</h3>
+      <div class="field"><label>Data</label><input id="c-data" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      ${state.produtos.map(p=>`
+        <div class="product-chip">
+          <span>${p.nome}</span>
+          <input class="qty-input mono" type="number" step="any" min="0" data-produto="${p.id}" value="${fmt(p.estoque)}">
+        </div>
+      `).join('')}
+      <button class="btn btn-primary btn-block" id="c-salvar" style="margin-top:8px;">Salvar contagem</button>
+    </div>
+    <div class="panel">
+      <h3>Contagens recentes</h3>
+      ${ultimas.length ? ultimas.map(c=>`
+        <div class="alert-line"><span>🗓️</span><span><b>${dateBR(c.data)}</b> — ${c.produtos.length} produto(s) contados.</span></div>
+      `).join('') : `<div class="empty-note">Nenhuma contagem registrada ainda.</div>`}
+    </div>
+  `;
+  el.querySelector('#c-salvar').addEventListener('click', ()=>{
+    const dataInput = el.querySelector('#c-data').value;
+    const dataISO = dataInput ? new Date(dataInput+'T12:00:00').toISOString() : todayISO();
+    const produtosContagem = [...el.querySelectorAll('[data-produto]')].map(inp=>{
+      const produtoId = Number(inp.dataset.produto);
+      const produto = state.produtos.find(p=>p.id===produtoId);
+      return {produtoId, produto: produto.nome, quantidade: Number(inp.value)||0};
+    });
+    state.contagens.push({data:dataISO, produtos:produtosContagem});
+    // sincroniza estoque atual com a contagem física
+    produtosContagem.forEach(item=>{
+      const produto = state.produtos.find(p=>p.id===item.produtoId);
+      if(produto) produto.estoque = item.quantidade;
+    });
+    save(); toast('Contagem registrada e estoque atualizado.'); renderAll();
+  });
+}
+
+/* ============================= PEDIDOS ============================= */
+function renderPedidos(el){
+  const pedidos = [...state.pedidos].sort((a,b)=>new Date(b.data)-new Date(a.data));
+  el.innerHTML = `
+    <h1 class="view-title">🧾 Pedidos</h1>
+    <div class="section-sub">Pedidos normais (feitos segunda, chegada quarta) e de reforço (feitos quarta, chegada sexta) são gerados a partir da aba <b>Previsões</b>.</div>
+    ${pedidos.length ? pedidos.map(p=>`
+      <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h3 style="margin:0;">${p.tipo==='normal'?'📦 Pedido normal':'⚡ Pedido de reforço'} <span class="mono" style="color:var(--ash); font-size:12px;">#${p.id}</span></h3>
+          <span class="status-pill ${p.status==='RECEBIDO'?'recv':p.status==='RECEBIMENTO_PARCIAL'?'part':'pend'}">${p.status.replace('_',' ')}</span>
+        </div>
+        <div class="section-sub" style="margin:0 0 10px;">Pedido em ${dateBR(p.data)} · Chegada prevista ${dateBR(p.chegada)}</div>
+        ${p.produtos.map(item=>`<div class="alert-line"><span>•</span><span>${item.produto} — <b>${fmt(item.quantidade)}</b></span></div>`).join('')}
+      </div>
+    `).join('') : `<div class="panel"><div class="empty-note">Nenhum pedido criado ainda. Vá até <b>Previsões</b> para gerar sugestões automáticas.</div></div>`}
+  `;
+}
+
+/* ============================= RECEBIMENTO ============================= */
+function renderRecebimento(el){
+  const pendentes = state.pedidos.filter(p=>p.status!=='RECEBIDO');
+  el.innerHTML = `
+    <h1 class="view-title">📥 Recebimento</h1>
+    ${pendentes.length ? `
+      <div class="field"><label>Pedido pendente</label>
+        <select id="r-pedido">${pendentes.map(p=>`<option value="${p.id}">#${p.id} · ${p.tipo==='normal'?'Normal':'Reforço'} · chegada ${dateBR(p.chegada)}</option>`).join('')}</select>
+      </div>
+      <div class="panel" id="r-itens"></div>
+    ` : `<div class="panel"><div class="empty-note">Nenhum pedido pendente de recebimento.</div></div>`}
+  `;
+  if(!pendentes.length) return;
+
+  function renderItens(){
+    const id = Number(el.querySelector('#r-pedido').value);
+    const pedido = state.pedidos.find(p=>p.id===id);
+    const box = el.querySelector('#r-itens');
+    box.innerHTML = `
+      <h3>Itens do pedido #${pedido.id}</h3>
+      ${pedido.produtos.map((item,idx)=>`
+        <div class="product-chip">
+          <span>${item.produto} <span class="mono" style="color:var(--ash)">(pedido: ${fmt(item.quantidade)})</span></span>
+          <input class="qty-input mono" type="number" step="any" min="0" data-idx="${idx}" value="${fmt(item.recebido ?? item.quantidade)}">
+        </div>
+      `).join('')}
+      <button class="btn btn-primary btn-block" id="r-confirmar" style="margin-top:10px;">Confirmar recebimento</button>
+    `;
+    box.querySelector('#r-confirmar').addEventListener('click', ()=>{
+      const inputs = [...box.querySelectorAll('[data-idx]')];
+      let totalPedido = 0, totalRecebido = 0;
+      inputs.forEach(inp=>{
+        const idx = Number(inp.dataset.idx);
+        const item = pedido.produtos[idx];
+        const recebido = Number(inp.value)||0;
+        item.recebido = recebido;
+        totalPedido += item.quantidade;
+        totalRecebido += recebido;
+        const produto = state.produtos.find(p=>p.nome===item.produto);
+        if(produto && recebido>0){
+          produto.estoque += recebido;
+          state.movimentacoes.push({data:todayISO(), produto:produto.nome, tipo:'RECEBIMENTO', quantidade:recebido, observacao:`Pedido #${pedido.id}`});
+        }
+      });
+      pedido.status = totalRecebido >= totalPedido ? 'RECEBIDO' : (totalRecebido>0 ? 'RECEBIMENTO_PARCIAL' : pedido.status);
+      save(); toast('Recebimento confirmado e estoque atualizado.'); renderAll();
+    });
+  }
+  el.querySelector('#r-pedido').addEventListener('change', renderItens);
+  renderItens();
+}
+
+/* ============================= HISTÓRICO ============================= */
+function renderHistorico(el){
+  const movs = [...state.movimentacoes].sort((a,b)=>new Date(b.data)-new Date(a.data));
+  el.innerHTML = `
+    <h1 class="view-title">🕒 Histórico</h1>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Observação</th></tr></thead>
+        <tbody>
+          ${movs.length ? movs.map(m=>`
+            <tr>
+              <td class="mono">${dateBR(m.data)}</td>
+              <td class="strong">${m.produto}</td>
+              <td><span class="status-pill ${m.tipo==='ENTRADA'?'ok':m.tipo==='SAÍDA'?'crit':'pend'}">${m.tipo}</span></td>
+              <td class="mono">${fmt(m.quantidade)}</td>
+              <td>${m.observacao||'—'}</td>
+            </tr>
+          `).join('') : `<tr><td colspan="5"><div class="empty-note">Nenhuma movimentação registrada ainda.</div></td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* ============================= PREVISÕES ============================= */
+function renderPrevisoes(el){
+  const rows = state.produtos.map(p=>{
+    const n = previsao(p, 3);
+    const r = previsao(p, 2);
+    return {p, n, r};
+  });
+  el.innerHTML = `
+    <h1 class="view-title">🔮 Previsões</h1>
+    <div class="section-sub">Consumo médio diário (últimos 30 dias, ou última contagem), dias até o mínimo e sugestão de pedido.</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Produto</th><th>Consumo/dia</th><th>Dias até mínimo</th><th>Previsão</th><th>Sugestão normal</th><th>Sugestão reforço</th></tr></thead>
+        <tbody>
+          ${rows.map(({p,n,r})=>`
+            <tr>
+              <td class="strong">${p.nome}</td>
+              <td class="mono">${fmt(n.consumoDiario)} ${p.unidade}</td>
+              <td class="mono">${Number.isFinite(n.diasAteMinimo)?fmt(n.diasAteMinimo):'—'}</td>
+              <td class="mono">${n.dataPrevista?dateBR(n.dataPrevista):'—'}</td>
+              <td class="mono">${n.sugestao>0?`<b style="color:var(--ember-gold)">${n.sugestao}</b>`:'0'}</td>
+              <td class="mono">${r.sugestao>0?`<b style="color:var(--ember-hot)">${r.sugestao}</b>`:'0'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="actions-row" style="margin-top:16px;">
+      <button class="btn btn-primary" id="p-gerar-normal">📦 Gerar pedido normal</button>
+      <button class="btn btn-outline" id="p-gerar-reforco">⚡ Gerar pedido de reforço</button>
+    </div>
+  `;
+  function gerarPedido(tipo, prazo){
+    const itens = state.produtos.map(p=>{
+      const sug = previsao(p, prazo).sugestao;
+      return sug>0 ? {produto:p.nome, quantidade:sug} : null;
+    }).filter(Boolean);
+    if(!itens.length){ toast('Nenhum produto precisa de pedido no momento.'); return; }
+    const pedido = {
+      id: nextId(state.pedidos), tipo, data: todayISO(),
+      chegada: addDays(todayISO(), prazo), status:'PENDENTE', produtos: itens
+    };
+    state.pedidos.push(pedido);
+    save(); toast(`Pedido ${tipo==='normal'?'normal':'de reforço'} #${pedido.id} gerado com ${itens.length} produto(s).`);
+    activeTab='pedidos'; renderAll();
+  }
+  el.querySelector('#p-gerar-normal').addEventListener('click', ()=>gerarPedido('normal',3));
+  el.querySelector('#p-gerar-reforco').addEventListener('click', ()=>gerarPedido('reforco',2));
+}
+
+/* ============================= MODAL GENÉRICO ============================= */
+function openModal(html){
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal-backdrop').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modal-backdrop').classList.remove('open');
+}
+document.getElementById('modal-backdrop').addEventListener('click', e=>{
+  if(e.target.id==='modal-backdrop') closeModal();
+});
+
+/* ============================= CONFIGURAÇÕES (URL JSON / backup) — oculto atrás da engrenagem ============================= */
+document.getElementById('btn-settings').addEventListener('click', ()=>{
+  const savedUrl = getRemoteUrl();
+  const lastSync = localStorage.getItem(LAST_SYNC_KEY);
+  openModal(`
+    <div class="modal-head"><h3>⚙️ Dados e configurações</h3><button class="modal-close" id="modal-x">✕</button></div>
+
+    <h3 style="font-size:13px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.08em;">Fonte automática (GitHub)</h3>
+    <div class="hint">O catálogo de produtos (nome, unidade, mínimo) é sincronizado automaticamente com este link toda vez que o app abre. O estoque atual e o histórico continuam salvos só neste aparelho.</div>
+    <div class="field"><input id="cfg-url" value="${savedUrl}"></div>
+    <div class="section-sub" style="margin-bottom:12px;">${lastSync ? `Última sincronização: ${new Date(lastSync).toLocaleString('pt-BR')}` : 'Ainda não sincronizado.'}</div>
+    <div class="actions-row">
+      <button class="btn btn-primary" id="cfg-salvar-url" style="flex:1;">💾 Salvar link</button>
+      <button class="btn btn-outline" id="cfg-sync-agora" style="flex:1;">🔄 Sincronizar agora</button>
+    </div>
+
+    <hr class="sep">
+    <h3 style="font-size:13px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.08em;">Substituir tudo pela URL</h3>
+    <div class="hint">Apaga os dados locais (estoque, movimentações, pedidos e contagens) e carrega tudo direto do JSON acima. Use só para restaurar do zero.</div>
+    <button class="btn btn-outline btn-block" id="cfg-carregar">📩 Substituir tudo pela URL</button>
+
+    <hr class="sep">
+
+    <h3 style="font-size:13px; color:var(--paper-dim); text-transform:uppercase; letter-spacing:.08em;">Backup local</h3>
+    <div class="hint">Exporte todos os dados para um arquivo, ou restaure a partir de um backup anterior.</div>
+    <div class="actions-row">
+      <button class="btn btn-success" id="cfg-exportar" style="flex:1;">⬇️ Exportar .json</button>
+      <button class="btn btn-outline" id="cfg-importar" style="flex:1;">⬆️ Importar .json</button>
+    </div>
+    <button class="btn btn-outline btn-block" id="cfg-exportar-xml" style="margin-top:8px;">📥 Exportar .xml</button>
+    <input type="file" id="cfg-file" accept="application/json" style="display:none;">
+
+    <hr class="sep">
+    <button class="btn btn-danger btn-block" id="cfg-reset">↺ Restaurar dados de exemplo</button>
+  `);
+  document.getElementById('modal-x').addEventListener('click', closeModal);
+
+  document.getElementById('cfg-salvar-url').addEventListener('click', ()=>{
+    const url = document.getElementById('cfg-url').value.trim();
+    if(!url){ toast('Informe uma URL válida.'); return; }
+    localStorage.setItem(REMOTE_URL_KEY, url);
+    toast('Link salvo como fonte automática.');
+  });
+
+  document.getElementById('cfg-sync-agora').addEventListener('click', async ()=>{
+    localStorage.setItem(REMOTE_URL_KEY, document.getElementById('cfg-url').value.trim() || DEFAULT_REMOTE_URL);
+    await syncCatalog({silent:false});
+    closeModal();
+  });
+
+  document.getElementById('cfg-carregar').addEventListener('click', async ()=>{
+    const url = document.getElementById('cfg-url').value.trim();
+    if(!url){ toast('Informe uma URL válida.'); return; }
+    if(!confirm('Isso vai apagar estoque, movimentações, pedidos e contagens locais. Continuar?')) return;
+    try{
+      const res = await fetch(url, {cache:'no-store'});
+      const data = await res.json();
+      if(!data.produtos) throw new Error('formato inválido');
+      state = {produtos:data.produtos||[], movimentacoes:data.movimentacoes||[], pedidos:data.pedidos||[], contagens:data.contagens||[]};
+      save();
+      localStorage.setItem(REMOTE_URL_KEY, url);
+      localStorage.setItem(LAST_SYNC_KEY, todayISO());
+      toast('Dados carregados da URL com sucesso.');
+      closeModal(); activeTab='dashboard'; renderAll();
+    }catch(err){
+      toast('Não foi possível carregar esse JSON. Verifique a URL.');
+    }
+  });
+
+  document.getElementById('cfg-exportar').addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `divino-fogao-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    toast('Backup exportado.');
+  });
+
+  document.getElementById('cfg-exportar-xml').addEventListener('click', exportarXML);
+
+  document.getElementById('cfg-importar').addEventListener('click', ()=> document.getElementById('cfg-file').click());
+  document.getElementById('cfg-file').addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      try{
+        const data = JSON.parse(ev.target.result);
+        state = {produtos:data.produtos||[], movimentacoes:data.movimentacoes||[], pedidos:data.pedidos||[], contagens:data.contagens||[]};
+        save(); toast('Backup importado com sucesso.'); closeModal(); activeTab='dashboard'; renderAll();
+      }catch(err){ toast('Arquivo inválido.'); }
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('cfg-reset').addEventListener('click', ()=>{
+    if(confirm('Isso vai apagar os dados atuais e restaurar os dados de exemplo. Continuar?')){
+      state = seedData(); save(); toast('Dados de exemplo restaurados.'); closeModal(); activeTab='dashboard'; renderAll();
+    }
+  });
+});
+
+/* ============================= INIT ============================= */
+renderAll();
+syncCatalog({silent:true});
+</script>
+</body>
+</html>
